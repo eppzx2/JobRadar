@@ -82,3 +82,50 @@ def enrich_board(client, job):
             job.published = detail.published or job.published
     if not job.description:
         raise FetchError('Vacancy description unavailable.')
+
+
+def cyberjob(client, soup, base):
+    seen = set()
+    for page in range(1, 101):
+        cards = soup.select('a[href^="/vacancies/"]')
+        if not cards:
+            if any(h.get_text(' ', strip=True) == 'Hazırda 0 vakansiya aktivdir' for h in soup.select('h1')):
+                return
+            raise FetchError('CyberJob vacancy cards were not found.')
+        previous = len(seen)
+        for card in cards:
+            url = urljoin(base, card['href'])
+            if url in seen:
+                continue
+            seen.add(url)
+            title = card.select_one('h3')
+            company = card.select_one('p span.truncate')
+            location = company.find_next_sibling('span') if company else None
+            clock = card.select_one('[icon="ph:clock"]')
+            if not title:
+                raise FetchError('CyberJob vacancy title is missing.')
+            yield Job(title.get_text(' ', strip=True), company.get_text(strip=True) if company else 'Undisclosed employer',
+                      url, location=location.get_text(strip=True) if location else '',
+                      published=clock.parent.get_text(strip=True) if clock else '')
+        link = next((b for b in soup.select('button[hx-get^="/vacancies?page="]')
+                     if b.get_text(strip=True) in (str(page + 1), 'Növbəti')), None)
+        if not link:
+            return
+        if len(seen) == previous:
+            raise FetchError('CyberJob returned a repeated page.')
+        html, base = client.read(urljoin(base, link['hx-get']))
+        soup = BeautifulSoup(html, 'html.parser')
+    raise FetchError('100-page CyberJob limit reached.')
+
+
+def cyberjob_description(client, url):
+    html, _ = client.read(url)
+    soup = BeautifulSoup(html, 'html.parser')
+    sections = []
+    for heading in soup.select('h3'):
+        label = heading.get_text(strip=True)
+        if label in ('İşin təsviri', 'Xüsusi tələblər'):
+            body = heading.find_next_sibling()
+            if body and body.name == 'div':
+                sections.append(label + '\n' + body.get_text('\n', strip=True))
+    return '\n\n'.join(sections)

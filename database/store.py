@@ -29,6 +29,10 @@ def connect(path=None):
             defaults = json.loads((ROOT / 'config/sources.json').read_text(encoding='utf-8'))
             db.executemany('INSERT OR IGNORE INTO sources(name,url) VALUES (?,?)',
                            [(name, defaults[name]) for name in ('JobSearch.az', 'HelloJob.az')])
+        cyberjob = db.execute("INSERT OR IGNORE INTO settings VALUES ('board_cyberjob','1')").rowcount
+        if cyberjob and not seeded:
+            defaults = json.loads((ROOT / 'config/sources.json').read_text(encoding='utf-8'))
+            db.execute('INSERT OR IGNORE INTO sources(name,url) VALUES (?,?)', ('CyberJob.az', defaults['CyberJob.az']))
         upgrade = db.execute("INSERT OR IGNORE INTO settings VALUES ('compact_role_profile_v1','1')").rowcount
         if upgrade:
             db.execute("ALTER TABLE jobs ADD COLUMN description_hits TEXT NOT NULL DEFAULT '[]'")

@@ -21,6 +21,8 @@ def collect(client, source):
     rules = json.loads(config.read_text(encoding='utf-8')).get(url)
     if rules:
         yield from configured_board(client, soup, base, name, rules)
+    elif host == 'cyberjob.az' and path == '/vacancies':
+        yield from boards.cyberjob(client, soup, base)
     elif host == 'jobsearch.az' and path == '/vacancies':
         yield from boards.jobsearch(client)
     elif host in ('hellojob.az', 'www.hellojob.az') and path == '/vakansiyalar':
@@ -55,6 +57,9 @@ def collect(client, source):
 
 def enrich(client, job):
     """Glorri's lightweight lists omit full descriptions; fetch only in description mode."""
+    if not job.description and urlsplit(job.url).hostname == 'cyberjob.az':
+        job.description = boards.cyberjob_description(client, job.url)
+        return
     if not job.description and urlsplit(job.url).hostname in ('jobsearch.az', 'hellojob.az', 'www.hellojob.az'):
         boards.enrich_board(client, job)
         return
@@ -77,7 +82,7 @@ def enrich(client, job):
 def live_description(client, job):
     """Fetch details only when the reader opens an individual vacancy."""
     host = urlsplit(job.url).hostname
-    if host in ('glorri.com', 'jobs.glorri.az', 'jobsearch.az', 'hellojob.az', 'www.hellojob.az'):
+    if host in ('cyberjob.az', 'glorri.com', 'jobs.glorri.az', 'jobsearch.az', 'hellojob.az', 'www.hellojob.az'):
         enrich(client, job)
         return job.description
     html, base = client.read(job.url)
