@@ -2,9 +2,9 @@
 
 JobRadar is a personal, on-demand vacancy dashboard for Azerbaijani career pages and job boards. Click **Fetch Jobs** to check enabled sources. You can reopen the app, adjust filters, or edit keywords offline after a fetch.
 
-## Windows — bir dəfə kopyala və işə sal
+## Windows quick start
 
-Windows 10/11-də **PowerShell** aç. Aşağıdakı blokun sağ üstündəki **Copy** düyməsinə bas, bloku PowerShell-ə yapışdır və **Enter** bas. Qovluq adı və ya istifadəçi adı yazmağa ehtiyac yoxdur. İlk quraşdırma üçün internet lazımdır. Windows quraşdırma icazəsi istəsə, təsdiqlə.
+On Windows 10 or 11, open **PowerShell**. Click **Copy** in the upper-right corner of the code block below, paste it into PowerShell, and press **Enter**. The script uses your Windows user folder automatically. Connect to the internet for the first installation and approve the installer if Windows prompts you.
 
 ```powershell
 & {
@@ -64,7 +64,7 @@ Windows 10/11-də **PowerShell** aç. Aşağıdakı blokun sağ üstündəki **C
 }
 ```
 
-Dashboard brauzerdə avtomatik açılmasa, **http://localhost:8501** ünvanına keç. Vakansiyaları yoxlamaq üçün **Fetch Jobs** düyməsinə bas. Proqramı dayandırmaq üçün PowerShell-də **Ctrl+C** bas. Növbəti dəfə də eyni bloku istifadə edə bilərsən: mövcud repo yenilənir və tətbiq açılır.
+If the dashboard does not open automatically, go to **http://localhost:8501**. Click **Fetch Jobs** to check for vacancies. To stop JobRadar, press **Ctrl+C** in PowerShell. To update and launch JobRadar later, paste the same block again.
 
 ## Run locally
 
