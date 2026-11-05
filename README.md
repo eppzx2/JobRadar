@@ -2,6 +2,70 @@
 
 JobRadar is a personal, on-demand vacancy dashboard for Azerbaijani career pages and job boards. Click **Fetch Jobs** to check enabled sources. You can reopen the app, adjust filters, or edit keywords offline after a fetch.
 
+## Windows — bir dəfə kopyala və işə sal
+
+Windows 10/11-də **PowerShell** aç. Aşağıdakı blokun sağ üstündəki **Copy** düyməsinə bas, bloku PowerShell-ə yapışdır və **Enter** bas. Qovluq adı və ya istifadəçi adı yazmağa ehtiyac yoxdur. İlk quraşdırma üçün internet lazımdır. Windows quraşdırma icazəsi istəsə, təsdiqlə.
+
+```powershell
+& {
+    $ErrorActionPreference = 'Stop'
+    $repo = Join-Path $env:USERPROFILE 'JobRadar'
+
+    function Install-PackageWithWinGet($id) {
+        if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+            throw 'Install or update App Installer in Microsoft Store, then paste this block again.'
+        }
+        winget install --id $id --exact --source winget --silent --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -ne 0) { throw "Installation failed: $id (exit $LASTEXITCODE)" }
+        $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
+                    [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $env:Path
+    }
+
+    if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) {
+        Install-PackageWithWinGet 'Git.Git'
+    }
+
+    function Find-Python {
+        foreach ($name in 'py.exe', 'python.exe', 'python3.exe') {
+            $cmd = Get-Command $name -ErrorAction SilentlyContinue
+            if (-not $cmd) { continue }
+            if ($name -ne 'py.exe' -and $cmd.Source -like '*\Microsoft\WindowsApps\*') { continue }
+            $options = @()
+            if ($name -eq 'py.exe') { $options = @('-3') }
+            $path = & $cmd.Source @options -c 'import sys; print(sys.executable) if sys.version_info >= (3, 11) else sys.exit(1)' 2>$null
+            if ($LASTEXITCODE -eq 0 -and $path) { return $path }
+        }
+        $standard = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'
+        if (Test-Path -LiteralPath $standard) { return $standard }
+    }
+
+    $python = Find-Python
+    if (-not $python) {
+        Install-PackageWithWinGet 'Python.Python.3.12'
+        $python = Find-Python
+        if (-not $python) { throw 'Python could not be found. Reopen PowerShell and paste this block again.' }
+    }
+
+    if (-not (Test-Path -LiteralPath $repo)) {
+        git clone https://github.com/eppzx2/JobRadar.git "$repo"
+        if ($LASTEXITCODE -ne 0) { throw 'Git clone failed.' }
+    } else {
+        if (-not (Test-Path -LiteralPath (Join-Path $repo '.git'))) { throw "Existing folder is not a Git checkout: $repo" }
+        $origin = git -C "$repo" remote get-url origin
+        if ($origin -notin @('https://github.com/eppzx2/JobRadar.git', 'https://github.com/eppzx2/JobRadar', 'git@github.com:eppzx2/JobRadar.git')) {
+            throw "Existing folder belongs to another repository: $repo"
+        }
+        git -C "$repo" pull --ff-only
+        if ($LASTEXITCODE -ne 0) { throw 'Git pull failed. Check the message above.' }
+    }
+
+    Set-Location -LiteralPath $repo
+    & $python app.py
+}
+```
+
+Dashboard brauzerdə avtomatik açılmasa, **http://localhost:8501** ünvanına keç. Vakansiyaları yoxlamaq üçün **Fetch Jobs** düyməsinə bas. Proqramı dayandırmaq üçün PowerShell-də **Ctrl+C** bas. Növbəti dəfə də eyni bloku istifadə edə bilərsən: mövcud repo yenilənir və tətbiq açılır.
+
 ## Run locally
 
 Install Python 3.11 or later, open a terminal in the JobRadar project folder, and run one command.
