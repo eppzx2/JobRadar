@@ -45,6 +45,7 @@ def sources(db):
 
 def keywords(db):
     st.header('Keyword management')
+    st.caption('Choose IT and security role phrases. Matches also require a junior or internship title or employment type. Senior and data analytics titles are excluded.')
     scope = st.radio('Search in', ['Job titles', 'Job titles and descriptions'],
                      index=int(setting(db, 'descriptions')), horizontal=True)
     if (scope.endswith('descriptions')) != setting(db, 'descriptions'):

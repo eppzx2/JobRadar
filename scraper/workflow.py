@@ -1,25 +1,27 @@
+import json
 from collections import Counter
 from datetime import datetime, timezone
 
 from filelock import FileLock, Timeout
 
-from database.store import as_job, save, setting
+from database.store import as_job, prune, save, setting
 from matching.jobs import matches
+from matching.profile import eligible, role_hits
 from notifications.telegram import notify
 from scraper.engine import collect, enrich
 from scraper.http import Client, FetchError
 
 
-def fetch(db, progress=lambda text: None, collector=collect):
+def fetch(db, progress=lambda text: None, collector=collect, remember=None):
     path = db.execute('PRAGMA database_list').fetchone()[2]
     try:
         with FileLock(path + '.fetch.lock', timeout=0):
-            return _fetch(db, progress, collector)
+            return _fetch(db, progress, collector, remember)
     except Timeout:
         raise FetchError('A fetch is already running. Check back when it finishes.') from None
 
 
-def _fetch(db, progress, collector):
+def _fetch(db, progress, collector, remember):
     sources = list(db.execute('SELECT * FROM sources WHERE enabled ORDER BY id'))
     if not sources:
         raise FetchError('Enable at least one source before fetching.')
@@ -35,9 +37,6 @@ def _fetch(db, progress, collector):
         "SELECT a.key,b.key FROM identities a JOIN identities b ON a.job=b.job "
         "WHERE a.key LIKE 'glorri:%' AND b.key LIKE 'glorri-slug:%'"
     ))
-    if descriptions:
-        for row in db.execute("SELECT i.key,j.description FROM identities i JOIN jobs j ON i.job=j.id WHERE j.description!=''"):
-            detail_cache[row[0]] = row[1]
     try:
         for source in sources:
             progress(f"Checking {source['name']}…")
@@ -54,7 +53,7 @@ def _fetch(db, progress, collector):
                     if descriptions and not job.description:
                         job.description = next((detail_cache[k] for k in job.keys() if k in detail_cache), '')
                     needs_slug = provider and provider not in resolved and not job.reference
-                    needs_detail = needs_slug or (descriptions and not job.description)
+                    needs_detail = needs_slug or (descriptions and eligible(job) and not job.description)
                     if needs_detail and detail_failures >= 3:
                         warnings['Detail lookups paused after three consecutive failures'] += 1
                     elif needs_detail:
@@ -66,7 +65,7 @@ def _fetch(db, progress, collector):
                         except Exception as exc:
                             detail_failures += 1
                             warnings['Detail unavailable: ' + str(exc)[:150]] += 1
-                    if job.description:
+                    if eligible(job) and job.description:
                         for key in job.keys():
                             detail_cache[key] = job.description
                     jobs.append(job)
@@ -81,7 +80,15 @@ def _fetch(db, progress, collector):
     with db:
         run = db.execute('INSERT INTO runs DEFAULT VALUES').lastrowid
         for source, jobs, warnings in batches:
-            ids = {save(db, j, run) for j in jobs}
+            ids = set()
+            for job in jobs:
+                jid = save(db, job, run)
+                ids.add(jid)
+                if eligible(job) and job.description:
+                    hits = role_hits(job.description, words, in_description=True)
+                    db.execute('UPDATE jobs SET description_hits=? WHERE id=?', (json.dumps(hits), jid))
+                    if remember and matches(job, words, descriptions):
+                        remember((jid, job.url), job.description)
             status = ('Partial' if ids else 'Failed') if warnings else 'Checked'
             message = ' · '.join(f'{k} ({n})' for k, n in warnings.items())
             db.execute('INSERT INTO checks VALUES (?,?,?,?,?,?)',
@@ -91,12 +98,19 @@ def _fetch(db, progress, collector):
             seen += 1
             job = as_job(row)
             hits = matches(job, words, descriptions)
+            if descriptions and eligible(job):
+                saved = json.loads(row['description_hits'])
+                hits = [word for word in words if word in hits or word in saved]
             if hits:
                 matched += 1
                 if row['first_run'] == run:
                     new_matches.append((job, hits))
         db.execute('UPDATE runs SET finished=?,checked=?,discovered=?,matched=?,fresh=? WHERE id=?',
                    (datetime.now(timezone.utc).isoformat(timespec='seconds'), len(sources), seen, matched, len(new_matches), run))
+        prune(db)
+    free = db.execute('PRAGMA freelist_count').fetchone()[0]
+    if free > 512 and free * 3 > db.execute('PRAGMA page_count').fetchone()[0]:
+        db.execute('VACUUM')
     if telegram and new_matches:
         progress('Sending new matches to Telegram…')
         message = notify(new_matches)

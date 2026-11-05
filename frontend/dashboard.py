@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -6,7 +7,9 @@ import streamlit as st
 from database.store import as_job, setting
 from frontend.manage import keywords, sources, telegram
 from matching.jobs import matches
-from scraper.http import FetchError
+from matching.profile import eligible
+from scraper.engine import live_description
+from scraper.http import Client, FetchError
 from scraper.workflow import fetch
 
 VIEWS = ['All Matching Jobs', 'Newly Discovered Jobs', 'Previously Discovered Jobs',
@@ -20,6 +23,9 @@ def results(db, view, run):
     rows = []
     for row in db.execute('SELECT * FROM jobs ORDER BY last_run DESC,id DESC'):
         hits = matches(as_job(row), words, use_desc)
+        if use_desc and eligible(as_job(row)):
+            saved = json.loads(row['description_hits'])
+            hits = [w for w in words if w in hits or w in saved]
         fresh = row['first_run'] == run
         if hits and (view != VIEWS[1] or fresh) and (view != VIEWS[2] or not fresh):
             rows.append(dict(row, hits=hits, fresh=fresh))
@@ -55,13 +61,35 @@ def results(db, view, run):
             st.caption('Matched keywords  ·  ' + ', '.join(r['hits']))
             if r['last_run'] != run:
                 st.caption('Saved from an earlier fetch. Check availability on the career page.')
-            if r['description']:
-                with st.expander('Job description'):
-                    st.text(r['description'])
+            with st.expander('Job description and requirements'):
+                details = st.session_state.get('job_details', {})
+                cache_key = (r['id'], r['url'])
+                if cache_key not in details and r['url'] and st.button('Load from career page', key=f"details-{r['id']}"):
+                    client = Client()
+                    try:
+                        content = live_description(client, as_job(r))
+                        if content:
+                            remember(cache_key, content)
+                        else:
+                            st.info('Details are available on the original career page.')
+                    except Exception:
+                        st.warning('Could not load details. Open the original vacancy below.')
+                    finally:
+                        client.session.close()
+                content = st.session_state.get('job_details', {}).get(cache_key)
+                if content:
+                    st.text(content)
             if r['url']:
                 st.link_button('View vacancy / apply ↗', r['url'])
             else:
                 st.caption('Application link unavailable.')
+
+
+def remember(key, content):
+    cache = st.session_state.setdefault('job_details', {})
+    cache[key] = content[:32000]
+    if len(cache) > 100:
+        del cache[next(iter(cache))]
 
 
 def dashboard(db):
@@ -74,7 +102,8 @@ def dashboard(db):
     if action.button('Fetch Jobs', type='primary', width="stretch"):
         with st.status('Fetching vacancies…', expanded=True) as status:
             try:
-                fetch(db, status.write)
+                st.session_state.job_details = {}
+                fetch(db, status.write, remember=remember)
                 status.update(label='Fetch completed', state='complete', expanded=False)
             except FetchError as exc:
                 status.update(label=str(exc), state='error')

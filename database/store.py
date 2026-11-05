@@ -4,11 +4,10 @@ import sqlite3
 from pathlib import Path
 
 from matching.jobs import Job, folded
+from matching.profile import ROLES
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_WORDS = ['SOC Analyst', 'Cybersecurity', 'Information Security', 'Blue Team',
-                 'Security Analyst', 'IT Support', 'System Administrator', 'Network Engineer',
-                 'Junior', 'Internship', 'Trainee']
+DEFAULT_WORDS = ROLES
 FIELDS = ('title', 'company', 'url', 'description', 'location', 'employment', 'published')
 
 
@@ -30,7 +29,29 @@ def connect(path=None):
             defaults = json.loads((ROOT / 'config/sources.json').read_text(encoding='utf-8'))
             db.executemany('INSERT OR IGNORE INTO sources(name,url) VALUES (?,?)',
                            [(name, defaults[name]) for name in ('JobSearch.az', 'HelloJob.az')])
+        upgrade = db.execute("INSERT OR IGNORE INTO settings VALUES ('compact_role_profile_v1','1')").rowcount
+        if upgrade:
+            db.execute("ALTER TABLE jobs ADD COLUMN description_hits TEXT NOT NULL DEFAULT '[]'")
+            if not seeded:
+                db.execute("DELETE FROM keywords WHERE folded IN ('internship','trainee','junior')")
+                db.executemany('INSERT OR IGNORE INTO keywords(word,folded) VALUES (?,?)',
+                               [(w, folded(w)) for w in ROLES])
+            db.execute("UPDATE jobs SET description='' WHERE description!=''")
+            prune(db)
+    if upgrade and not seeded:
+        db.execute('VACUUM')
     return db
+
+
+def prune(db):
+    # Compact metadata is useful for returning matches and Telegram deduplication.
+    db.execute("""DELETE FROM identities WHERE job IN (
+        SELECT j.id FROM jobs j JOIN runs r ON r.id=j.last_run WHERE julianday(r.finished)<julianday('now','-30 days')
+        UNION SELECT id FROM (SELECT id FROM jobs ORDER BY last_run DESC,id DESC LIMIT -1 OFFSET 10000))""")
+    db.execute('DELETE FROM jobs WHERE id NOT IN (SELECT job FROM identities)')
+    db.execute('DELETE FROM checks WHERE run NOT IN (SELECT id FROM runs ORDER BY id DESC LIMIT 30)')
+    db.execute("""DELETE FROM runs WHERE id NOT IN (SELECT id FROM runs ORDER BY id DESC LIMIT 30)
+        AND id NOT IN (SELECT first_run FROM jobs UNION SELECT last_run FROM jobs)""")
 
 
 def setting(db, key):
@@ -53,7 +74,7 @@ def save(db, job, run):
         raise ValueError('Vacancy lacks a title or stable identity.')
     existing = list(db.execute('SELECT DISTINCT j.* FROM jobs j JOIN identities i ON i.job=j.id '
                                f'WHERE i.key IN ({",".join("?" for _ in keys)}) ORDER BY j.first_run,j.id', keys))
-    values = [getattr(job, k) or '' for k in FIELDS]
+    values = ['' if k == 'description' else getattr(job, k) or '' for k in FIELDS]
     if existing:
         keep = existing[0]['id']
         for row in existing:

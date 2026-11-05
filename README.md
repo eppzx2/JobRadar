@@ -93,13 +93,13 @@ Local execution is the simplest zero-cost deployment. For a private server, keep
 ## First fetch
 
 1. Open **Sources Management** to review, edit, disable, remove, or add a career page. Check each publisher's terms and disable a source if its terms prohibit collection.
-2. Open **Keyword Management** to choose titles or titles and descriptions. Matching uses case-insensitive literal phrases. Any matching keyword qualifies a vacancy. English keywords do not translate automatically. For Azerbaijani listings you may want to add phrases such as *informasiya təhlükəsizliyi*, *kiçik mütəxəssis*, or *təcrübəçi*.
-3. Click **Fetch Jobs**. Leave the app open while it works. Large boards can take several minutes. Description mode can take longer on its first run because some feeds require individual detail pages. JobRadar reuses saved descriptions when later feeds omit them.
+2. Open **Keyword Management** to edit bilingual IT and cybersecurity role phrases or choose title-and-description matching. A match requires both a role phrase and a junior, trainee or internship marker in the title or employment type. Examples include *Junior Helpdesk Technician*, *İT üzrə təcrübəçi*, and *Texniki dəstək üzrə kiçik mütəxəssis*. Matching ignores case, accents and punctuation. Senior and data analytics titles are excluded even if the description mentions IT support. The standalone keyword IT only matches titles.
+3. Click **Fetch Jobs**. Leave the app open while it works. Large boards can take several minutes. Description mode can take longer on its first run because some feeds require individual detail pages. Description lookups are limited to junior/intern candidates.
 4. Expand **Latest source results** to see successful, partial, and failed checks. Use the company, keyword, location, employment type, and new-only filters to narrow the results.
 
 **Dashboard metrics** summarize the last fetch. Sources checked counts attempts. Vacancies discovered counts unique vacancies read during that fetch. Matching vacancies uses the keyword settings in effect at fetch time. New vacancies counts first discoveries and New matches counts the subset that matched.
 
-**Job views** show saved history using the current keywords and scope. New means first discovered in the latest fetch and persists across reloads. Earlier vacancies appear in Previously Discovered Jobs. Older records carry an availability note when absent from the latest run. Removing or disabling a source preserves its history. An empty result can mean your keywords did not match even though the fetch found vacancies.
+**Job views** show saved history using the current keywords and scope. New means first discovered in the latest fetch and persists across reloads. Earlier vacancies appear in Previously Discovered Jobs. Descriptions and requirements are shown in the vacancy card when the publisher supplies them. Click **Load from career page** for an uncached posting. Up to 100 snippets of 32,000 characters each are held in session memory. Older records carry an availability note when absent from the latest run. Removing or disabling a source preserves its history. An empty result can mean your keywords did not match even though the fetch found vacancies.
 
 ## Included sources
 
@@ -145,7 +145,7 @@ Only card, title, and link are required. The optional empty selector identifies 
 
 ## Duplicate detection and reliability
 
-- SQLite keeps a vacancy row plus unique identity aliases. URL normalization removes tracking parameters, normalizes host/port, and preserves meaningful query IDs and hash routes.
+- SQLite retains compact vacancy metadata, matching role labels and unique identity aliases for up to 30 days and 10,000 vacancies. Old descriptions are purged on upgrade. Full descriptions are never written to the database. Only the latest 30 source-check reports are retained. Cleanup runs after each completed fetch; a vacancy returning after eviction may be marked new. URL normalization removes tracking parameters, normalizes host/port, and preserves meaningful query IDs and hash routes.
 - Glorri links can share a provider ID, a canonical portal slug, or an employer-scoped combination of title, location, and precise publication timestamp. The app resolves short Unibank links to canonical Glorri detail URLs. Structured postings without individual URLs can use an employer requisition ID.
 - Different requisitions can share the same title. Records without a shared reliable identity stay separate. If an authoritative alias later connects records, the older first-discovery status survives.
 - One fetch at a time per database. Network collection finishes before the SQLite write transaction, and a failed source cannot erase previously saved results. Timeouts, HTTP errors, pagination loops, and unsupported structures appear in source results. A partial source contributes only the vacancies already read.

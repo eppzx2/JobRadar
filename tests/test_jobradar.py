@@ -53,7 +53,7 @@ class Workflow(unittest.TestCase):
             fetch(self.db, collector=self.collector)
             self.assertEqual(send.call_count, 1)
         runs = self.db.execute('SELECT discovered,matched,fresh FROM runs ORDER BY id').fetchall()
-        self.assertEqual([tuple(r) for r in runs], [(3, 2, 2), (3, 3, 0)])
+        self.assertEqual([tuple(r) for r in runs], [(3, 2, 2), (3, 2, 0)])
         row = self.db.execute('SELECT status FROM checks WHERE run=1 ORDER BY rowid DESC').fetchone()
         self.assertEqual(row[0], 'Partial')
 

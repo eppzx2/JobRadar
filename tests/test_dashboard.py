@@ -19,7 +19,7 @@ class Dashboard(unittest.TestCase):
 
         from scraper.workflow import fetch
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, JOBRADAR_DB=tmp+'/db'), \
-                patch('frontend.dashboard.fetch', lambda db, progress: fetch(db, progress, collect)):
+                patch('frontend.dashboard.fetch', lambda db, progress, remember: fetch(db, progress, collect, remember)):
             app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
             self.assertFalse(calls)
             app.button[0].click().run()

@@ -81,7 +81,10 @@ class Job:
 
 
 def matches(job, keywords, descriptions):
-    fields = [folded(job.title)]
-    if descriptions:
-        fields.append(folded(job.description))
-    return [word for word in keywords if any(folded(word) in field for field in fields)]
+    from matching.profile import eligible, role_hits
+
+    if not eligible(job):
+        return []
+    title_hits = role_hits(job.title, keywords)
+    description_hits = role_hits(job.description, keywords, in_description=True) if descriptions else []
+    return [word for word in keywords if word in title_hits or word in description_hits]

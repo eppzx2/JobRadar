@@ -72,3 +72,19 @@ def enrich(client, job):
         p = urlsplit(canonical.get('content', ''))
         if p.hostname == 'jobs.glorri.az' and p.path.startswith('/vacancies/'):
             job.aliases.append('glorri-slug:' + p.path.rstrip('/'))
+
+
+def live_description(client, job):
+    """Fetch details only when the reader opens an individual vacancy."""
+    host = urlsplit(job.url).hostname
+    if host in ('glorri.com', 'jobs.glorri.az', 'jobsearch.az', 'hellojob.az', 'www.hellojob.az'):
+        enrich(client, job)
+        return job.description
+    html, base = client.read(job.url)
+    soup = BeautifulSoup(html, 'html.parser')
+    from parsers.html import structured
+    for detail in structured(soup, base, job.company):
+        if detail.description and (detail.title == job.title or detail.url == job.url):
+            return detail.description
+    body = soup.select_one('[itemprop="description"], .body-text, .job-description, .vacancy-description, article')
+    return body.get_text('\n', strip=True) if body else ''
