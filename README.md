@@ -4,16 +4,25 @@ JobRadar is a personal, on-demand vacancy dashboard for Azerbaijani career pages
 
 ## Run locally
 
-Use Python 3.11 or later. From the extracted project directory:
+Install Python 3.11 or later, open a terminal in the JobRadar project folder, and run one command.
+
+**Linux / macOS**
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python -m streamlit run app.py
+python3 app.py
 ```
 
-On Windows, activate with `.venv\Scripts\activate` in Command Prompt or `.\.venv\Scripts\Activate.ps1` in PowerShell. Open **http://localhost:8501**. The app creates its SQLite database on first launch. The nine supplied URLs are enabled and the eleven requested keywords are ready to use.
+**Windows (PowerShell or Command Prompt)**
+
+```powershell
+py app.py
+```
+
+If your Windows installation provides the `python` command, `python app.py` works too. On any platform, `python3 app.py` works when `python3` points to a supported interpreter.
+
+On first launch, JobRadar creates a private `.venv`, installs the packages in `requirements.txt`, and starts Streamlit. The first installation requires internet access. Subsequent launches use the same command and reuse installed packages. If the requirements change after a pull, the launcher installs missing or incompatible dependencies. On Debian/Ubuntu, install the matching `python3-venv` package if your Python installation lacks venv support.
+
+Open **http://localhost:8501** (or the URL printed in the terminal). Press **Ctrl+C** to stop the app. The database is created on first launch. Click **Fetch Jobs** when you want to check the nine configured sources.
 
 Local execution is the simplest zero-cost deployment. For a private server, keep the application and its SQLite file on persistent disk. Binding to localhost suits a single-user workspace. For remote access, use an SSH tunnel or an authenticated private gateway. All users of one installation share configuration and history.
 
@@ -96,11 +105,13 @@ Only first-seen matches from the active fetch are eligible. The database commits
 | `config/` | Real seed URLs and optional HTML parser rules |
 | `tests/fixtures/` | Synthetic vacancies, isolated from the production sources |
 
-Run the offline tests from the project root:
+After the first launch, run the offline tests from the project root:
 
 ```bash
-python -m unittest discover -v
+.venv/bin/python -m unittest discover -v
 ```
+
+On Windows, use `.venv\Scripts\python.exe -m unittest discover -v`.
 
 Tests use temporary databases and simulated sources. They cover duplicate identities across pages and sessions, separate requisitions with identical titles, source failure isolation, notification eligibility, case-insensitive matching, parser behavior, and the dashboard's manual-only fetch trigger. Sample postings never enter the live database.
 
