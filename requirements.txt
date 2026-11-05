@@ -1,0 +1,7 @@
+streamlit>=1.51,<2
+requests>=2.32.4,<3
+beautifulsoup4>=4.13,<5
+python-dotenv>=1.1,<2
+protego>=0.5,<1
+filelock>=3.16,<4
+tzdata>=2024.1
