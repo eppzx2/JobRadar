@@ -86,7 +86,7 @@ If your Windows installation provides the `python` command, `python app.py` work
 
 On first launch, JobRadar creates a private `.venv`, installs the packages in `requirements.txt`, and starts Streamlit. The first installation requires internet access. Subsequent launches use the same command and reuse installed packages. If the requirements change after a pull, the launcher installs missing or incompatible dependencies. On Debian/Ubuntu, install the matching `python3-venv` package if your Python installation lacks venv support.
 
-Open **http://localhost:8501** (or the URL printed in the terminal). Press **Ctrl+C** to stop the app. The database is created on first launch. Click **Fetch Jobs** when you want to check the nine configured sources.
+Open **http://localhost:8501** (or the URL printed in the terminal). Press **Ctrl+C** to stop the app. The database is created on first launch. Click **Fetch Jobs** when you want to check the eleven configured sources.
 
 Local execution is the simplest zero-cost deployment. For a private server, keep the application and its SQLite file on persistent disk. Binding to localhost suits a single-user workspace. For remote access, use an SSH tunnel or an authenticated private gateway. All users of one installation share configuration and history.
 
@@ -113,6 +113,8 @@ Local execution is the simplest zero-cost deployment. For a private server, keep
 | PASHA Insurance | Published Teamtailor jobs RSS with descriptions and locations |
 | PASHA Life | Embedded Glorri employer feed |
 | PASHA Bank | Glorri integration for the bank's public career tenant |
+| JobSearch.az | Public vacancy API with publisher-provided pagination |
+| HelloJob.az | Paginated vacancy cards and structured posting details |
 | Glorri | Public portal API with offset pagination and the employer name for each posting |
 
 The application follows publisher feeds exposed by these pages without running a browser. Where a supported source supplies a closing date, the parser excludes expired postings. Fields that the publisher omits are shown as unspecified. Detail enrichment for Glorri runs in description mode and also resolves short application links when needed for identity. The app only reads public pages. It does not submit applications.

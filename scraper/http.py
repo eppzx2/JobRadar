@@ -44,7 +44,7 @@ class Client:
         self.last = {}
         self.limited = set()
 
-    def read(self, url, policy=False, hops=0):
+    def read(self, url, policy=False, hops=0, headers=None):
         public_url(url)
         p = urlsplit(url)
         origin = f'{p.scheme}://{p.netloc}'
@@ -68,11 +68,11 @@ class Client:
                 raise FetchError('Publisher requests a longer delay than this interactive fetch supports.')
         time.sleep(max(0, self.last.get(origin, 0) + delay - time.monotonic()))
         self.last[origin] = time.monotonic()
-        with self.session.get(url, timeout=(12, 18), allow_redirects=False, stream=True) as response:
+        with self.session.get(url, timeout=(12, 18), allow_redirects=False, stream=True, headers=headers) as response:
             if response.is_redirect:
                 if hops >= 4:
                     raise FetchError('Redirect limit reached.')
-                return self.read(urljoin(url, response.headers['Location']), policy, hops + 1)
+                return self.read(urljoin(url, response.headers['Location']), policy, hops + 1, headers)
             if policy and response.status_code in (404, 410):
                 return '', url
             if response.status_code == 429:

@@ -25,6 +25,11 @@ def connect(path=None):
             sources = json.loads((ROOT / 'config/sources.json').read_text(encoding='utf-8'))
             db.executemany('INSERT INTO sources(name,url) VALUES (?,?)', sources.items())
             db.executemany('INSERT INTO keywords(word,folded) VALUES (?,?)', [(w, folded(w)) for w in DEFAULT_WORDS])
+        added_boards = db.execute("INSERT OR IGNORE INTO settings VALUES ('boards_jobsearch_hellojob','1')").rowcount
+        if added_boards and not seeded:
+            defaults = json.loads((ROOT / 'config/sources.json').read_text(encoding='utf-8'))
+            db.executemany('INSERT OR IGNORE INTO sources(name,url) VALUES (?,?)',
+                           [(name, defaults[name]) for name in ('JobSearch.az', 'HelloJob.az')])
     return db
 
 

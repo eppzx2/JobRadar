@@ -5,7 +5,7 @@ from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
-from parsers import feeds
+from parsers import boards, feeds
 from parsers.selectors import configured_board
 from parsers.html import generic, unibank
 from scraper.http import FetchError
@@ -21,6 +21,10 @@ def collect(client, source):
     rules = json.loads(config.read_text(encoding='utf-8')).get(url)
     if rules:
         yield from configured_board(client, soup, base, name, rules)
+    elif host == 'jobsearch.az' and path == '/vacancies':
+        yield from boards.jobsearch(client)
+    elif host in ('hellojob.az', 'www.hellojob.az') and path == '/vakansiyalar':
+        yield from boards.hellojob(client, soup, base)
     elif host == 'careers.bir.az' and path == '/vacancies':
         yield from feeds.bir(client, name, base)
     elif soup.select_one('form.js-vacancy-filter[action]'):
@@ -51,6 +55,9 @@ def collect(client, source):
 
 def enrich(client, job):
     """Glorri's lightweight lists omit full descriptions; fetch only in description mode."""
+    if not job.description and urlsplit(job.url).hostname in ('jobsearch.az', 'hellojob.az', 'www.hellojob.az'):
+        boards.enrich_board(client, job)
+        return
     if job.description or urlsplit(job.url).hostname not in ('glorri.com', 'jobs.glorri.az'):
         return
     url = job.url.removesuffix('/apply')
