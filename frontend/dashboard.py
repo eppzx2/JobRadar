@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 import streamlit as st
 
-from database.store import as_job, setting
+from database.store import as_job, setting, set_option
 from frontend.manage import keywords, sources, telegram
 from matching.jobs import matches
 from matching.profile import eligible
@@ -97,6 +97,11 @@ def dashboard(db):
     st.sidebar.title('◎ JobRadar')
     view = st.sidebar.radio('Workspace', VIEWS, key='workspace_view', label_visibility='collapsed')
     telegram(db)
+    current = setting(db, 'full_scan')
+    full = st.sidebar.checkbox('Full scan', value=current,
+                               help='Quick scan allows 50 seconds per source. Full scan continues through all available pages.')
+    if full != current:
+        set_option(db, 'full_scan', full)
     top, action = st.columns([4, 1])
     top.title('Vacancy dashboard')
     if action.button('Fetch Jobs', type='primary', width="stretch"):

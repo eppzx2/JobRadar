@@ -1,4 +1,7 @@
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -9,7 +12,9 @@ from matching.jobs import matches
 from matching.profile import eligible, role_hits
 from notifications.telegram import notify
 from scraper.engine import collect, enrich
-from scraper.http import Client, FetchError
+from scraper.http import Client, FetchError, PublisherLimits
+
+SOURCE_SECONDS = 50
 
 
 def fetch(db, progress=lambda text: None, collector=collect, remember=None):
@@ -21,6 +26,46 @@ def fetch(db, progress=lambda text: None, collector=collect, remember=None):
         raise FetchError('A fetch is already running. Check back when it finishes.') from None
 
 
+def read_source(client, source, collector, descriptions, resolved, report):
+    aliases = resolved.copy()
+    detail_cache = {}
+    jobs, warnings = [], Counter()
+    detail_failures = 0
+    try:
+        for job in collector(client, source):
+            client.remaining()
+            if not job.title or not job.keys():
+                warnings['Missing title or identifier'] += 1
+                continue
+            provider = next((k for k in job.keys() if k.startswith('glorri:')), '')
+            if provider in aliases:
+                job.aliases.append(aliases[provider])
+            if descriptions and not job.description:
+                job.description = next((detail_cache[k] for k in job.keys() if k in detail_cache), '')
+            needs_slug = provider and provider not in aliases and not job.reference
+            needs_detail = needs_slug or (descriptions and eligible(job) and not job.description)
+            if needs_detail and detail_failures >= 3:
+                warnings['Detail lookups paused after three consecutive failures'] += 1
+            elif needs_detail:
+                try:
+                    enrich(client, job)
+                    detail_failures = 0
+                    if provider and job.aliases:
+                        aliases[provider] = job.aliases[-1]
+                except Exception as exc:
+                    detail_failures += 1
+                    warnings['Detail unavailable: ' + str(exc)[:150]] += 1
+            if eligible(job) and job.description:
+                for key in job.keys():
+                    detail_cache[key] = job.description
+            jobs.append(job)
+            if len(jobs) % 50 == 0:
+                report(f"{source['name']} · {len(jobs)} vacancies read")
+    except Exception as exc:
+        warnings[str(exc)[:220] or type(exc).__name__] += 1
+    return source, jobs, warnings
+
+
 def _fetch(db, progress, collector, remember):
     sources = list(db.execute('SELECT * FROM sources WHERE enabled ORDER BY id'))
     if not sources:
@@ -28,54 +73,43 @@ def _fetch(db, progress, collector, remember):
     words = [r[0] for r in db.execute('SELECT word FROM keywords ORDER BY id')]
     descriptions = setting(db, 'descriptions')
     telegram = setting(db, 'telegram')
-    client = Client()
-    # Network I/O precedes the write transaction; keep partial pages on source failure.
-    batches = []
-    detail_cache = {}
     # The short Unibank application URLs have no portal slug. Resolve them once.
     resolved = dict(db.execute(
         "SELECT a.key,b.key FROM identities a JOIN identities b ON a.job=b.job "
         "WHERE a.key LIKE 'glorri:%' AND b.key LIKE 'glorri-slug:%'"
     ))
-    try:
-        for source in sources:
-            progress(f"Checking {source['name']}…")
-            jobs, warnings = [], Counter()
-            detail_failures = 0
-            try:
-                for job in collector(client, source):
-                    if not job.title or not job.keys():
-                        warnings['Missing title or identifier'] += 1
-                        continue
-                    provider = next((k for k in job.keys() if k.startswith('glorri:')), '')
-                    if provider in resolved:
-                        job.aliases.append(resolved[provider])
-                    if descriptions and not job.description:
-                        job.description = next((detail_cache[k] for k in job.keys() if k in detail_cache), '')
-                    needs_slug = provider and provider not in resolved and not job.reference
-                    needs_detail = needs_slug or (descriptions and eligible(job) and not job.description)
-                    if needs_detail and detail_failures >= 3:
-                        warnings['Detail lookups paused after three consecutive failures'] += 1
-                    elif needs_detail:
-                        try:
-                            enrich(client, job)
-                            detail_failures = 0
-                            if provider and job.aliases:
-                                resolved[provider] = job.aliases[-1]
-                        except Exception as exc:
-                            detail_failures += 1
-                            warnings['Detail unavailable: ' + str(exc)[:150]] += 1
-                    if eligible(job) and job.description:
-                        for key in job.keys():
-                            detail_cache[key] = job.description
-                    jobs.append(job)
-                    if len(jobs) % 50 == 0:
-                        progress(f"{source['name']} · {len(jobs)} vacancies read")
-            except Exception as exc:
-                warnings[str(exc)[:220] or type(exc).__name__] += 1
-            batches.append((source, jobs, warnings))
-    finally:
-        client.session.close()
+    # Keep SQLite and Streamlit calls on the caller thread.
+    budget = None if setting(db, 'full_scan') else SOURCE_SECONDS
+    events = Queue()
+    limits = PublisherLimits()
+
+    def worker(source):
+        start = time.monotonic()
+        client = Client(limits, start + budget if budget is not None else None)
+        events.put(('progress', f"Checking {source['name']}…"))
+        try:
+            batch = read_source(client, source, collector, descriptions, resolved,
+                                lambda message: events.put(('progress', message)))
+        finally:
+            client.session.close()
+        return batch, round(time.monotonic() - start)
+
+    batches = []
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        pending = {s['id']: pool.submit(worker, s) for s in sources}
+        for source_id, future in pending.items():
+            future.add_done_callback(lambda _, sid=source_id: events.put(('finished', sid)))
+        while pending:
+            event, value = events.get()
+            if event == 'progress':
+                progress(value)
+                continue
+            batch, elapsed = pending.pop(value).result()
+            source, jobs, warnings = batch
+            batches.append(batch)
+            state = 'partial' if warnings and jobs else 'failed' if warnings else 'checked'
+            progress(f"{source['name']} · {state} · {len(jobs)} vacancies · {elapsed}s")
+    batches.sort(key=lambda batch: batch[0]['id'])
     new_matches = []
     with db:
         run = db.execute('INSERT INTO runs DEFAULT VALUES').lastrowid

@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import time
+import threading
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -35,21 +36,51 @@ def public_url(url):
     return url
 
 
-class Client:
-    """One user-triggered run owns this session, policy cache and pacing state."""
+class PublisherLimits:
+    """Shared by workers so boards using the same ATS respect one request cadence."""
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({'User-Agent': 'JobRadar/1.0', 'Accept-Language': 'az,en;q=0.8'})
-        self.rules = {}
+        self.lock = threading.Lock()
         self.last = {}
         self.limited = set()
 
+    def acquire(self, origin, delay, remaining):
+        while True:
+            budget = remaining()
+            with self.lock:
+                if origin in self.limited:
+                    raise FetchError(f'Publisher rate limit at {urlsplit(origin).hostname}.')
+                now = time.monotonic()
+                wait = self.last.get(origin, -float('inf')) + delay - now
+                if wait <= 0:
+                    self.last[origin] = now
+                    return
+            if wait >= budget:
+                raise FetchError('Source time budget reached before the next permitted request.')
+            time.sleep(wait)
+
+
+class Client:
+    """One user-triggered run owns this session, policy cache and pacing state."""
+    def __init__(self, limits=None, deadline=None):
+        self.limits = limits or PublisherLimits()
+        self.deadline = deadline
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': 'JobRadar/1.0', 'Accept-Language': 'az,en;q=0.8'})
+        self.rules = {}
+
+    def remaining(self):
+        if self.deadline is None:
+            return float('inf')
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise FetchError('Source time budget reached. Use full scan to check more pages.')
+        return left
+
     def read(self, url, policy=False, hops=0, headers=None):
+        self.remaining()
         public_url(url)
         p = urlsplit(url)
         origin = f'{p.scheme}://{p.netloc}'
-        if origin in self.limited:
-            raise FetchError(f'Publisher rate limit at {p.hostname}.')
         delay = 2.0 if p.hostname == 'jobs.glorri.az' else 0.6
         if not policy:
             if origin not in self.rules:
@@ -66,9 +97,9 @@ class Client:
             delay = max(delay, rules.crawl_delay('JobRadar') or 0, rate.seconds / rate.requests if rate and rate.requests else 0)
             if delay > 30:
                 raise FetchError('Publisher requests a longer delay than this interactive fetch supports.')
-        time.sleep(max(0, self.last.get(origin, 0) + delay - time.monotonic()))
-        self.last[origin] = time.monotonic()
-        with self.session.get(url, timeout=(12, 18), allow_redirects=False, stream=True, headers=headers) as response:
+        self.limits.acquire(origin, delay, self.remaining)
+        budget = self.remaining()
+        with self.session.get(url, timeout=(min(8, budget), min(12, budget)), allow_redirects=False, stream=True, headers=headers) as response:
             if response.is_redirect:
                 if hops >= 4:
                     raise FetchError('Redirect limit reached.')
@@ -76,11 +107,13 @@ class Client:
             if policy and response.status_code in (404, 410):
                 return '', url
             if response.status_code == 429:
-                self.limited.add(origin)
+                with self.limits.lock:
+                    self.limits.limited.add(origin)
             if response.status_code != 200:
                 raise FetchError(f'HTTP {response.status_code} at {p.hostname}' + (' (robots.txt)' if policy else ''))
             buf = bytearray()
             for chunk in response.iter_content(65536):
+                self.remaining()
                 buf.extend(chunk)
                 if len(buf) > 8_000_000:
                     raise FetchError('Response exceeds the 8 MB limit.')

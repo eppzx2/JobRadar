@@ -57,6 +57,30 @@ class Workflow(unittest.TestCase):
         row = self.db.execute('SELECT status FROM checks WHERE run=1 ORDER BY rowid DESC').fetchone()
         self.assertEqual(row[0], 'Partial')
 
+    def test_slow_source_keeps_partial_rows_while_another_completes(self):
+        from threading import Barrier
+
+        overlap = Barrier(2, timeout=3)
+        def collect(client, source):
+            overlap.wait()
+            yield Job('Junior Helpdesk', 'Test', f"https://example.test/{source['id']}")
+            if source['id'] == 1:
+                client.deadline = 0
+                client.remaining()
+
+        fetch(self.db, collector=collect)
+        checks = self.db.execute('SELECT status,count FROM checks ORDER BY rowid').fetchall()
+        self.assertEqual([tuple(row) for row in checks], [('Partial', 1), ('Checked', 1)])
+
+    def test_full_scan_can_finish_more_than_fifty_rows(self):
+        set_option(self.db, 'full_scan', True)
+        def collect(client, source):
+            assert client.deadline is None
+            for i in range(60):
+                yield Job('Junior Helpdesk', 'Test', f'https://example.test/{i}')
+        fetch(self.db, collector=collect)
+        self.assertEqual(self.db.execute('SELECT discovered FROM runs').fetchone()[0], 60)
+
     def test_failure_isolated(self):
         def collect(client, source):
             if source['id'] == 1:
