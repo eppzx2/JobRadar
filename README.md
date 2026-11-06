@@ -4,7 +4,9 @@ JobRadar is a personal, on-demand vacancy dashboard for Azerbaijani career pages
 
 ## Windows quick start
 
-On Windows 10 or 11, open **PowerShell**. Click **Copy** in the upper-right corner of the code block below, paste it into PowerShell, and press **Enter**. The script uses your Windows user folder automatically. Connect to the internet for the first installation and approve the installer if Windows prompts you.
+After the one-time setup below, type `jobradar` in PowerShell or Command Prompt from any folder to open the dashboard. You can also double-click `bin/jobradar.cmd` in File Explorer.
+
+For the first launch on Windows 10 or 11, open **PowerShell**. Click **Copy** in the upper-right corner of the code block below, paste it into PowerShell, and press **Enter**. The script uses your Windows user folder automatically. Connect to the internet for the first installation and approve the installer if Windows prompts you.
 
 ```powershell
 & {
@@ -59,12 +61,20 @@ On Windows 10 or 11, open **PowerShell**. Click **Copy** in the upper-right corn
         if ($LASTEXITCODE -ne 0) { throw 'Git pull failed. Check the message above.' }
     }
 
+    $bin = Join-Path $repo 'bin'
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if (($userPath -split ';') -notcontains $bin) {
+        $entries = @($userPath -split ';' | Where-Object { $_ }) + $bin
+        [Environment]::SetEnvironmentVariable('Path', ($entries -join ';'), 'User')
+    }
+    if (($env:Path -split ';') -notcontains $bin) { $env:Path += ";$bin" }
+
     Set-Location -LiteralPath $repo
     & $python app.py
 }
 ```
 
-If the dashboard does not open automatically, go to **http://localhost:8501**. Click **Fetch Jobs** to check for vacancies. To stop JobRadar, press **Ctrl+C** in PowerShell. To update and launch JobRadar later, paste the same block again.
+If the dashboard does not open automatically, go to **http://localhost:8501**. Click **Fetch Jobs** to check for vacancies. To stop JobRadar, press **Ctrl+C** in PowerShell. For daily use, run `jobradar`. Run the setup block again when you want to pull updates. If an already-open terminal cannot find the command, close and reopen the terminal.
 
 ## Run locally
 
