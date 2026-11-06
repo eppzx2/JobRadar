@@ -88,7 +88,7 @@ def _fetch(db, progress, collector, remember):
         client = Client(limits, start + budget if budget is not None else None)
         events.put(('progress', f"Checking {source['name']}…"))
         try:
-            batch = read_source(client, dict(source, full_scan=budget is None), collector, descriptions, resolved,
+            batch = read_source(client, dict(source, full_scan=budget is None, words=words), collector, descriptions, resolved,
                                 lambda message: events.put(('progress', message)))
         finally:
             client.session.close()

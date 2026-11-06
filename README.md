@@ -115,7 +115,7 @@ Local execution is the simplest zero-cost deployment. For a private server, keep
 | PASHA Bank | Glorri integration for the bank's public career tenant |
 | JobSearch.az | Quick scan requests only the system administration, IT support and cybersecurity categories from the public API. Full scan includes other categories to catch misclassified postings. Both apply your role and seniority filters locally. |
 | [CyberJob.az](https://cyberjob.az/vacancies) | Paginated IT vacancy listings with job descriptions and requirements on the detail pages |
-| HelloJob.az | Paginated vacancy cards and structured posting details |
+| HelloJob.az | Checks the individual posting before accepting it. Ended, expired and unverifiable listings are skipped. Results show only postings verified in the latest fetch whose deadlines are still open. Quick scan prioritizes junior or role-related titles; full scan checks every card within the page limit. |
 | Glorri | Public portal API with offset pagination and the employer name for each posting |
 
 The application follows publisher feeds exposed by these pages without running a browser. Where a supported source supplies a closing date, the parser excludes expired postings. Fields that the publisher omits are shown as unspecified. Detail enrichment for Glorri runs in description mode and also resolves short application links when needed for identity. The app only reads public pages. It does not submit applications.

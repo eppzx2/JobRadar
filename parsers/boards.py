@@ -1,11 +1,14 @@
 import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs, quote, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
-from matching.jobs import Job
+from matching.jobs import Job, identity_url
+from matching.profile import ROLES, eligible, role_hits
 from parsers.feeds import plain
-from parsers.html import structured
+from parsers.html import postings, structured
 from scraper.http import FetchError
 
 JOBSEARCH_API = 'https://jobsearch.az/api-az/vacancies-az'
@@ -45,7 +48,39 @@ def jobsearch(client, targeted=True):
     raise FetchError('100-page JobSearch limit reached.')
 
 
-def hellojob(client, soup, base):
+def active_hellojob(soup, url, company):
+    if soup.select_one('.vp__badge--ended') or soup.find(string=lambda t: t and 'bu elanın vaxtı bitib' in t.casefold()):
+        return None
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            records = postings(json.loads(script.get_text()))
+            for record in records:
+                if not record.get('url') or identity_url(record['url']) != identity_url(url):
+                    continue
+                value = record.get('validThrough') or ''
+                try:
+                    deadline = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                except (ValueError, AttributeError):
+                    continue
+                if len(value) == 10:
+                    deadline = deadline.replace(hour=23, minute=59, second=59, microsecond=999999)
+                if deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=ZoneInfo('Asia/Baku'))
+                if deadline <= datetime.now(deadline.tzinfo):
+                    return None
+                job = next((j for j in structured(soup, url, company)
+                            if j.url and identity_url(j.url) == identity_url(url)), None)
+                if job:
+                    job.valid_until = deadline.isoformat()
+                    # This publisher's local numeric ID is not an employer requisition ID.
+                    job.reference = ''
+                    return job
+        except ValueError:
+            continue
+    return None
+
+
+def hellojob(client, soup, base, *, full=False, words=ROLES):
     seen = set()
     for _ in range(100):
         cards = soup.select('a.vacancies__body[href*="/vakansiya/"]')
@@ -59,10 +94,20 @@ def hellojob(client, soup, base):
             seen.add(url)
             title = card.select_one('.vacancies__title')
             company = card.select_one('.vacancies__company-name')
-            calendar = card.find('use', attrs={'xlink:href': '#svg-calendar'})
-            date = calendar.find_parent('li') if calendar else None
-            yield Job(title.get_text(' ', strip=True), company.get_text(' ', strip=True) if company else 'Undisclosed employer',
-                      url, published=date.get_text(' ', strip=True) if date else '')
+            candidate = Job(title.get_text(' ', strip=True), company.get_text(strip=True) if company else 'Undisclosed employer', url)
+            if not full and not (eligible(candidate) or role_hits(candidate.title, words)):
+                continue
+            try:
+                html, final = client.read(url)
+            except FetchError as exc:
+                if str(exc).startswith(('HTTP 404 ', 'HTTP 410 ')):
+                    continue
+                raise
+            if identity_url(final) != identity_url(url):
+                continue
+            job = active_hellojob(BeautifulSoup(html, 'html.parser'), url, candidate.company)
+            if job:
+                yield job
         link = soup.select_one('a.pagination__btn.next[href]')
         if not link:
             return
@@ -82,7 +127,7 @@ def enrich_board(client, job):
     else:
         html, base = client.read(job.url)
         soup = BeautifulSoup(html, 'html.parser')
-        detail = next(structured(soup, base, job.company), None)
+        detail = active_hellojob(soup, job.url, job.company)
         if detail:
             job.description = detail.description
             job.employment = detail.employment

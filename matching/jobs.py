@@ -56,6 +56,8 @@ class Job:
 
     aliases: list[str] = field(default_factory=list)
 
+    valid_until: str = ''
+
     def __post_init__(self):
         for name in ('title', 'company', 'url', 'description', 'location', 'employment', 'published', 'reference'):
             value = getattr(self, name)

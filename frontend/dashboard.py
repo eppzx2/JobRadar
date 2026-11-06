@@ -1,12 +1,13 @@
 import json
 from datetime import datetime
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import streamlit as st
 
 from database.store import as_job, setting, set_option
 from frontend.manage import keywords, sources, telegram
-from matching.jobs import matches
+from matching.jobs import expired, matches
 from matching.profile import eligible
 from scraper.engine import live_description
 from scraper.http import Client, FetchError
@@ -22,6 +23,9 @@ def results(db, view, run):
     use_desc = setting(db, 'descriptions')
     rows = []
     for row in db.execute('SELECT * FROM jobs ORDER BY last_run DESC,id DESC'):
+        if urlsplit(row['url'] or '').hostname in ('hellojob.az', 'www.hellojob.az'):
+            if row['last_run'] != run or not row['valid_until'] or expired(row['valid_until']):
+                continue
         hits = matches(as_job(row), words, use_desc)
         if use_desc and eligible(as_job(row)):
             saved = json.loads(row['description_hits'])

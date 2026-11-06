@@ -29,7 +29,8 @@ def collect(client, source):
     elif host == 'jobsearch.az' and path == '/vacancies':
         yield from boards.jobsearch(client, targeted=not dict(source).get('full_scan', False))
     elif host in ('hellojob.az', 'www.hellojob.az') and path == '/vakansiyalar':
-        yield from boards.hellojob(client, soup, base)
+        yield from boards.hellojob(client, soup, base, full=dict(source).get('full_scan', False),
+                                  words=dict(source).get('words', boards.ROLES))
     elif host == 'careers.bir.az' and path == '/vacancies':
         yield from feeds.bir(client, name, base)
     elif soup.select_one('form.js-vacancy-filter[action]'):

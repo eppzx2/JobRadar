@@ -33,6 +33,8 @@ def connect(path=None):
         if cyberjob and not seeded:
             defaults = json.loads((ROOT / 'config/sources.json').read_text(encoding='utf-8'))
             db.execute('INSERT OR IGNORE INTO sources(name,url) VALUES (?,?)', ('CyberJob.az', defaults['CyberJob.az']))
+        if db.execute("INSERT OR IGNORE INTO settings VALUES ('hellojob_deadlines_v1','1')").rowcount:
+            db.execute("ALTER TABLE jobs ADD COLUMN valid_until TEXT NOT NULL DEFAULT ''")
         upgrade = db.execute("INSERT OR IGNORE INTO settings VALUES ('compact_role_profile_v1','1')").rowcount
         if upgrade:
             db.execute("ALTER TABLE jobs ADD COLUMN description_hits TEXT NOT NULL DEFAULT '[]'")
@@ -91,5 +93,7 @@ def save(db, job, run):
     else:
         keep = db.execute('INSERT INTO jobs(first_run,last_run,' + ','.join(FIELDS) +
                           ') VALUES (?,?,?,?,?,?,?,?,?)', (run, run, *values)).lastrowid
+    if job.valid_until:
+        db.execute('UPDATE jobs SET valid_until=? WHERE id=?', (job.valid_until, keep))
     db.executemany('INSERT OR IGNORE INTO identities VALUES (?,?)', [(k, keep) for k in keys])
     return keep
