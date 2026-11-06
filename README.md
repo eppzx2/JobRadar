@@ -4,7 +4,17 @@ JobRadar is a personal, on-demand vacancy dashboard for Azerbaijani career pages
 
 ## Windows quick start
 
-After the one-time setup below, type `jobradar` in PowerShell or Command Prompt from any folder to open the dashboard. You can also double-click `bin/jobradar.cmd` in File Explorer.
+### Daily launch
+
+After setup, open PowerShell or Command Prompt in any folder and run:
+
+```powershell
+jobradar
+```
+
+You can also double-click `bin\jobradar.cmd` inside the JobRadar folder. Click **Fetch Jobs** when you want to check for vacancies. Press **Ctrl+C** in the terminal to stop the app.
+
+### First-time setup
 
 For the first launch on Windows 10 or 11, open **PowerShell**. Click **Copy** in the upper-right corner of the code block below, paste it into PowerShell, and press **Enter**. The script uses your Windows user folder automatically. Connect to the internet for the first installation and approve the installer if Windows prompts you.
 
@@ -74,7 +84,11 @@ For the first launch on Windows 10 or 11, open **PowerShell**. Click **Copy** in
 }
 ```
 
-If the dashboard does not open automatically, go to **http://localhost:8501**. Click **Fetch Jobs** to check for vacancies. To stop JobRadar, press **Ctrl+C** in PowerShell. For daily use, run `jobradar`. Run the setup block again when you want to pull updates. If an already-open terminal cannot find the command, close and reopen the terminal.
+If the dashboard does not open automatically, go to **http://localhost:8501**. Open a new terminal before using the daily launch command for the first time.
+
+### Update JobRadar
+
+Stop the app with **Ctrl+C**, then paste the setup block above into PowerShell again. It updates your existing checkout, registers the `jobradar` command for older installations, and launches the dashboard.
 
 ## Run locally
 
