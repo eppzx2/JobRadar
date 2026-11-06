@@ -116,7 +116,7 @@ Local execution is the simplest zero-cost deployment. For a private server, keep
 | JobSearch.az | Quick scan requests only the system administration, IT support and cybersecurity categories from the public API. Full scan includes other categories to catch misclassified postings. Both apply your role and seniority filters locally. |
 | [CyberJob.az](https://cyberjob.az/vacancies) | Paginated IT vacancy listings with job descriptions and requirements on the detail pages |
 | HelloJob.az | Paginated vacancy cards and structured posting details |
-| Glorri | Quick scan requests the Science, Technology and Engineering category from the public portal API. Full scan checks every category, including postings classified elsewhere. Local role and seniority filters apply in both modes. |
+| Glorri | Public portal API with offset pagination and the employer name for each posting |
 
 The application follows publisher feeds exposed by these pages without running a browser. Where a supported source supplies a closing date, the parser excludes expired postings. Fields that the publisher omits are shown as unspecified. Detail enrichment for Glorri runs in description mode and also resolves short application links when needed for identity. The app only reads public pages. It does not submit applications.
 
