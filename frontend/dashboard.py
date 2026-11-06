@@ -99,7 +99,7 @@ def dashboard(db):
     telegram(db)
     current = setting(db, 'full_scan')
     full = st.sidebar.checkbox('Full scan', value=current,
-                               help='Quick scan allows 50 seconds per source. Full scan includes all JobSearch.az categories and continues through all available pages.')
+                               help='Quick scan allows 50 seconds per source. Full scan includes all JobSearch.az and Glorri categories and continues through all available pages.')
     if full != current:
         set_option(db, 'full_scan', full)
     top, action = st.columns([4, 1])

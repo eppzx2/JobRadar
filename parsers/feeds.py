@@ -84,9 +84,12 @@ def employer(client, name, company_id):
                   r.get('type') or '', published, board_reference(slug, r['title'], location, published))
 
 
-def portal(client):
+def portal(client, targeted=True):
     def page(_, offset):
-        data = client.json(f'https://jobs.glorri.az/api/jobs/public?limit=18&offset={offset}')
+        url = f'https://jobs.glorri.az/api/jobs/public?limit=18&offset={offset}'
+        if targeted:
+            url += '&jobFunctions%5B%5D=science-technology-engineering'
+        data = client.json(url)
         return data['entities'], data['totalCount']
 
     def parse(r):

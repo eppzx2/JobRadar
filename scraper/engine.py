@@ -15,8 +15,12 @@ def collect(client, source):
     name, url = source['name'], source['url']
     config = Path(__file__).resolve().parents[1] / 'config/selectors.json'
     rules = json.loads(config.read_text(encoding='utf-8')).get(url)
+    targeted = not dict(source).get('full_scan', False)
+    if not rules and url.rstrip('/') == 'https://jobs.glorri.az':
+        yield from feeds.portal(client, targeted=targeted)
+        return
     if not rules and url.rstrip('/') == 'https://jobsearch.az/vacancies':
-        yield from boards.jobsearch(client, targeted=not dict(source).get('full_scan', False))
+        yield from boards.jobsearch(client, targeted=targeted)
         return
     html, base = client.read(url)
     soup = BeautifulSoup(html, 'html.parser')
@@ -27,7 +31,7 @@ def collect(client, source):
     elif host == 'cyberjob.az' and path == '/vacancies':
         yield from boards.cyberjob(client, soup, base)
     elif host == 'jobsearch.az' and path == '/vacancies':
-        yield from boards.jobsearch(client, targeted=not dict(source).get('full_scan', False))
+        yield from boards.jobsearch(client, targeted=targeted)
     elif host in ('hellojob.az', 'www.hellojob.az') and path == '/vakansiyalar':
         yield from boards.hellojob(client, soup, base)
     elif host == 'careers.bir.az' and path == '/vacancies':
@@ -36,7 +40,7 @@ def collect(client, source):
         endpoint = soup.select_one('form.js-vacancy-filter')['action'].strip()
         yield from feeds.abb(client, name, urljoin(base, endpoint))
     elif host == 'jobs.glorri.az' and not path:
-        yield from feeds.portal(client)
+        yield from feeds.portal(client, targeted=targeted)
     elif host == 'unibank.az' and 'vacanciesHrm' in path:
         yield from unibank(soup, base, name)
     elif host == 'www.rabitabank.com' and soup.find('vacancies'):
