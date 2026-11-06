@@ -113,7 +113,7 @@ Local execution is the simplest zero-cost deployment. For a private server, keep
 | PASHA Insurance | Published Teamtailor jobs RSS with descriptions and locations |
 | PASHA Life | Embedded Glorri employer feed |
 | PASHA Bank | Glorri integration for the bank's public career tenant |
-| JobSearch.az | Public vacancy API with publisher-provided pagination |
+| JobSearch.az | Quick scan requests only the system administration, IT support and cybersecurity categories from the public API. Full scan includes other categories to catch misclassified postings. Both apply your role and seniority filters locally. |
 | [CyberJob.az](https://cyberjob.az/vacancies) | Paginated IT vacancy listings with job descriptions and requirements on the detail pages |
 | HelloJob.az | Paginated vacancy cards and structured posting details |
 | Glorri | Public portal API with offset pagination and the employer name for each posting |

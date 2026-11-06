@@ -1,5 +1,5 @@
 import json
-from urllib.parse import quote, urljoin, urlsplit
+from urllib.parse import parse_qs, quote, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -12,8 +12,14 @@ JOBSEARCH_API = 'https://jobsearch.az/api-az/vacancies-az'
 JSON_HEADERS = {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}
 
 
-def jobsearch(client):
+# Publisher IDs for system administration, IT support and cybersecurity.
+JOBSEARCH_CATEGORIES = '141371,141372,141374'
+
+
+def jobsearch(client, targeted=True):
     url = JOBSEARCH_API + '?hl=az&page=1'
+    if targeted:
+        url += '&categories=' + JOBSEARCH_CATEGORIES
     seen = set()
     for _ in range(100):
         data = json.loads(client.read(url, headers=JSON_HEADERS)[0])
@@ -30,6 +36,8 @@ def jobsearch(client):
         if not url:
             return
         parsed = urlsplit(url)
+        if targeted and parse_qs(parsed.query).get('categories') != [JOBSEARCH_CATEGORIES]:
+            raise FetchError('JobSearch omitted the requested categories from its next-page link.')
         if (len(seen) == previous or parsed.scheme != 'https' or
                 parsed.hostname not in ('unsu.jobsearch.az', 'jobsearch.az') or
                 parsed.path != '/api-az/vacancies-az'):

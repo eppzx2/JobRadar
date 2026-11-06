@@ -13,18 +13,21 @@ from scraper.http import FetchError
 
 def collect(client, source):
     name, url = source['name'], source['url']
+    config = Path(__file__).resolve().parents[1] / 'config/selectors.json'
+    rules = json.loads(config.read_text(encoding='utf-8')).get(url)
+    if not rules and url.rstrip('/') == 'https://jobsearch.az/vacancies':
+        yield from boards.jobsearch(client, targeted=not dict(source).get('full_scan', False))
+        return
     html, base = client.read(url)
     soup = BeautifulSoup(html, 'html.parser')
     host = urlsplit(base).hostname
     path = urlsplit(base).path.rstrip('/')
-    config = Path(__file__).resolve().parents[1] / 'config/selectors.json'
-    rules = json.loads(config.read_text(encoding='utf-8')).get(url)
     if rules:
         yield from configured_board(client, soup, base, name, rules)
     elif host == 'cyberjob.az' and path == '/vacancies':
         yield from boards.cyberjob(client, soup, base)
     elif host == 'jobsearch.az' and path == '/vacancies':
-        yield from boards.jobsearch(client)
+        yield from boards.jobsearch(client, targeted=not dict(source).get('full_scan', False))
     elif host in ('hellojob.az', 'www.hellojob.az') and path == '/vakansiyalar':
         yield from boards.hellojob(client, soup, base)
     elif host == 'careers.bir.az' and path == '/vacancies':
